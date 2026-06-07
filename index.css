@@ -658,6 +658,12 @@ td {
   border-left-color: var(--danger-color);
 }
 
+.toast.toast-warning {
+  border-left-color: var(--accent-color);
+  background: rgba(245, 158, 11, 0.12);
+  font-weight: 600;
+}
+
 .toast-close {
   background: transparent;
   border: none;

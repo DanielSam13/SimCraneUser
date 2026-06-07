@@ -85,22 +85,20 @@ const getStatus = (p) => {
 };
 
 // Toast Notifications
-const showToast = (message, type = 'success') => {
+const showToast = (message, type = 'success', duration = 4000) => {
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.innerHTML = `
     <span>${message}</span>
     <button class="toast-close">&times;</button>
   `;
-  
-  // Close handler
+
   toast.querySelector('.toast-close').addEventListener('click', () => {
     toast.remove();
   });
-  
+
   toastContainer.appendChild(toast);
-  
-  // Auto-remove after 4 seconds
+
   setTimeout(() => {
     if (toast.parentElement) {
       toast.style.opacity = '0';
@@ -108,7 +106,7 @@ const showToast = (message, type = 'success') => {
       toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }
-  }, 4000);
+  }, duration);
 };
 
 // Notification Helpers
@@ -131,6 +129,13 @@ const requestNotificationPermission = () => {
   }
 };
 
+const updatePageTitle = () => {
+  const pending = profiles.filter(p => !p.approved && p.role !== 'admin').length;
+  document.title = pending > 0
+    ? `(${pending}) SimCrane User - Gerenciamento`
+    : 'SimCrane User - Gerenciamento';
+};
+
 // Alerts & Expiring Trials Check
 const checkUserAlerts = () => {
   if (!alertsContainer) return;
@@ -147,22 +152,26 @@ const checkUserAlerts = () => {
   });
   
   alertsContainer.innerHTML = '';
-  
+  updatePageTitle();
+
   if (pendingUsers.length === 0 && expiringUsers.length === 0) {
     alertsContainer.style.display = 'none';
     return;
   }
-  
+
   alertsContainer.style.display = 'flex';
-  
+
   // 1. Pending users alert
   if (pendingUsers.length > 0) {
+    const names = pendingUsers.map(u => `<strong>${u.full_name || 'Sem Nome'}</strong>`).join(', ');
     const alert = document.createElement('div');
     alert.className = 'alert-banner';
     alert.innerHTML = `
       <span class="alert-banner-icon">🔔</span>
       <div class="alert-banner-text">
-        Há <strong>${pendingUsers.length}</strong> usuário(s) aguardando aprovação de acesso!
+        ${pendingUsers.length === 1
+          ? `${names} aguarda aprovação de acesso!`
+          : `${pendingUsers.length} usuários aguardam aprovação: ${names}`}
       </div>
     `;
     alertsContainer.appendChild(alert);
@@ -209,7 +218,9 @@ const subscribeToProfiles = () => {
       console.log('Realtime profile update:', payload);
       // Trigger instant warning for new signups
       if (payload.eventType === 'INSERT' && !payload.new.approved) {
-        showToast('Novo usuário se cadastrou!');
+        const userName = payload.new.full_name || 'Novo usuário';
+        showToast(`🔔 ${userName} aguarda aprovação de acesso!`, 'warning', 7000);
+        sendNotification('Aprovação Pendente', `${userName} acabou de solicitar acesso ao SimCrane.`);
       }
       fetchProfiles();
     })
