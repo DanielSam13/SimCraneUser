@@ -384,6 +384,35 @@ body {
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
+/* Online summary chip in toolbar */
+.online-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #34d399;
+  white-space: nowrap;
+}
+
+@keyframes pulse-online {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+.online-dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success-color);
+  animation: pulse-online 2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
 .search-icon {
   position: absolute;
   left: 14px;
@@ -452,6 +481,11 @@ td {
   gap: 12px;
 }
 
+.avatar-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .avatar {
   width: 36px;
   height: 36px;
@@ -464,8 +498,22 @@ td {
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(59, 130, 246, 0.25);
-  flex-shrink: 0;
 }
+
+/* Presence Dot on avatar */
+.presence-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-color);
+}
+
+.presence-online  { background: var(--success-color); }
+.presence-recent  { background: var(--accent-color); }
+.presence-offline { background: rgba(156, 163, 175, 0.35); }
 
 .user-info {
   display: flex;
@@ -911,5 +959,146 @@ td {
   width: auto;
   min-width: 100px;
 }
+
+/* Activity Modal */
+.activity-modal-content {
+  max-width: 640px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#activity-modal-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.activity-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 20px;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.2);
+  margin-bottom: 16px;
+}
+
+.activity-presence-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.chip-online  { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.chip-recent  { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.chip-offline { background: rgba(156,163,175,0.1); color: #9ca3af; border: 1px solid rgba(156,163,175,0.2); }
+
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.activity-table th {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.activity-table td {
+  padding: 12px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.1);
+  vertical-align: middle;
+}
+
+.activity-table tr:last-child td { border-bottom: none; }
+
+.activity-hours-bar {
+  height: 5px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 3px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.activity-hours-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 3px;
+  min-width: 3px;
+  transition: width 0.4s ease;
+}
+
+.activity-hours-text {
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.activity-sessions-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.activity-empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.activity-setup-msg {
+  padding: 16px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.activity-setup-msg code {
+  background: rgba(255,255,255,0.07);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #fbbf24;
+}
+
+.activity-sql {
+  background: rgba(17, 24, 39, 0.8);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 12px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #86efac;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.activity-total-row {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 12px 14px 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.activity-total-row strong { color: var(--text-main); }
 
 

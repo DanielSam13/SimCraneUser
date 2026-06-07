@@ -22,7 +22,15 @@ const profilesList = document.getElementById('profiles-list');
 const dashboardLoading = document.getElementById('dashboard-loading');
 const emptyState = document.getElementById('empty-state');
 const toastContainer = document.getElementById('toast-container');
-const alertsContainer = document.getElementById('alerts-container');
+const alertsContainer  = document.getElementById('alerts-container');
+const onlineSummary   = document.getElementById('online-summary');
+const onlineCountEl   = document.getElementById('online-count');
+
+// Activity Modal Elements
+const activityModal      = document.getElementById('activity-modal');
+const activityModalTitle = document.getElementById('activity-modal-title');
+const activityModalBody  = document.getElementById('activity-modal-body');
+const btnCloseActivity   = document.getElementById('btn-close-activity-modal');
 
 // Edit User Modal Elements
 const editModal = document.getElementById('edit-modal');
@@ -38,6 +46,29 @@ const btnCancelEdit = document.getElementById('btn-cancel-edit');
 const TRIAL_DAYS = 14;
 const DAY_MS = 86400000;
 const POLL_INTERVAL_MS = 30000; // 30 seconds
+const ONLINE_MS  = 5  * 60 * 1000; // < 5 min  = online
+const RECENT_MS  = 30 * 60 * 1000; // < 30 min = recently active
+
+// SQL to run in Supabase to enable presence + session tracking
+const SETUP_SQL =
+`-- 1. Adicionar coluna de presença à tabela profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+
+-- 2. Criar tabela de sessões para rastreamento de horas/dia
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id    UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at   TIMESTAMPTZ,
+  date       DATE NOT NULL DEFAULT CURRENT_DATE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_date
+  ON user_sessions(user_id, date);
+
+-- 3. Política de acesso (RLS) — ajuste conforme necessário
+ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Usuários gerenciam próprias sessões"
+  ON user_sessions FOR ALL USING (auth.uid() = user_id);`;
 
 let profiles = [];
 let currentUser = null;
@@ -46,7 +77,23 @@ let pollingInterval = null;
 // null = not yet initialized (first load); Set = known pending user IDs
 let knownPendingIds = null;
 
-// 4. Utility Functions
+// 4. Presence helpers
+const getPresenceStatus = (p) => {
+  if (!p.last_seen_at) return 'offline';
+  const diff = Date.now() - new Date(p.last_seen_at).getTime();
+  if (diff < ONLINE_MS)  return 'online';
+  if (diff < RECENT_MS)  return 'recent';
+  return 'offline';
+};
+
+const presenceLabel = { online: 'Online agora', recent: 'Ativo recentemente', offline: 'Offline' };
+
+const updateOnlineSummary = () => {
+  const count = profiles.filter(p => p.role !== 'admin' && getPresenceStatus(p) === 'online').length;
+  onlineCountEl.textContent = count === 1 ? '1 online' : `${count} online`;
+};
+
+// 5. Utility Functions
 const fmtDate = (iso) => {
   if (!iso) return '—';
   const date = new Date(iso);
@@ -156,7 +203,122 @@ const updatePageTitle = () => {
     : 'SimCrane User - Gerenciamento';
 };
 
-// 9. Alert Banners (in-dashboard)
+// 9. Activity Modal
+const closeActivityModal = () => { activityModal.style.display = 'none'; };
+
+const fetchUserActivity = async (userId) => {
+  const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
+  const { data, error } = await supabase
+    .from('user_sessions')
+    .select('started_at, ended_at, date')
+    .eq('user_id', userId)
+    .gte('started_at', since)
+    .order('started_at', { ascending: false });
+  if (error) return { error };
+
+  // Aggregate seconds and session count per day
+  const byDate = {};
+  (data || []).forEach(s => {
+    const key = s.date || s.started_at.split('T')[0];
+    if (!byDate[key]) byDate[key] = { sessions: 0, seconds: 0 };
+    byDate[key].sessions++;
+    const end   = s.ended_at ? new Date(s.ended_at) : new Date();
+    const start = new Date(s.started_at);
+    byDate[key].seconds += Math.max(0, (end - start) / 1000);
+  });
+
+  return {
+    data: Object.entries(byDate)
+      .map(([date, v]) => ({ date, sessions: v.sessions, hours: v.seconds / 3600 }))
+      .sort((a, b) => b.date.localeCompare(a.date)),
+  };
+};
+
+const openActivityModal = async (p) => {
+  const status   = getPresenceStatus(p);
+  const chipClass = { online: 'chip-online', recent: 'chip-recent', offline: 'chip-offline' }[status];
+  const dotColor  = { online: 'presence-online', recent: 'presence-recent', offline: 'presence-offline' }[status];
+
+  activityModalTitle.textContent = `Atividade — ${p.full_name || 'Sem Nome'}`;
+  activityModalBody.innerHTML = `
+    <div class="activity-user-info">
+      <span class="activity-presence-chip ${chipClass}">
+        <span class="presence-dot" style="position:static;border:none;width:8px;height:8px;" class="${dotColor}"></span>
+        ${presenceLabel[status]}
+      </span>
+      ${p.last_seen_at
+        ? `<span style="font-size:12px;color:var(--text-muted);">Último acesso: ${fmtDateTime(p.last_seen_at)}</span>`
+        : '<span style="font-size:12px;color:var(--text-muted);">Presença não rastreada ainda</span>'}
+    </div>
+    <div class="dashboard-loading"><div class="spinner"></div><p>Carregando atividade...</p></div>
+  `;
+  activityModal.style.display = 'flex';
+
+  const { data, error } = await fetchUserActivity(p.id);
+
+  if (error) {
+    activityModalBody.querySelector('.dashboard-loading')?.remove();
+    activityModalBody.insertAdjacentHTML('beforeend', `
+      <div class="activity-setup-msg">
+        <p>⚠️ A tabela <code>user_sessions</code> ainda não existe no banco de dados.</p>
+        <p>Execute o SQL abaixo no <strong>Supabase → SQL Editor</strong> para habilitar o rastreamento:</p>
+        <pre class="activity-sql">${SETUP_SQL}</pre>
+        <p style="margin-top:12px;">Depois, adicione o código de rastreamento ao app SimCrane (usuário).</p>
+      </div>
+    `);
+    return;
+  }
+
+  const loading = activityModalBody.querySelector('.dashboard-loading');
+  if (loading) loading.remove();
+
+  if (!data || data.length === 0) {
+    activityModalBody.insertAdjacentHTML('beforeend',
+      '<p class="activity-empty">Nenhuma sessão registrada nos últimos 30 dias.</p>');
+    return;
+  }
+
+  const maxHours   = Math.max(...data.map(d => d.hours));
+  const totalHours = data.reduce((s, d) => s + d.hours, 0);
+  const totalH     = Math.floor(totalHours);
+  const totalM     = Math.round((totalHours - totalH) * 60);
+
+  activityModalBody.insertAdjacentHTML('beforeend', `
+    <table class="activity-table">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Tempo online</th>
+          <th>Sessões</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map(d => {
+          const h   = Math.floor(d.hours);
+          const m   = Math.round((d.hours - h) * 60);
+          const pct = Math.min(100, (d.hours / Math.max(maxHours, 0.01)) * 100);
+          return `
+            <tr>
+              <td style="color:var(--text-muted);font-size:12px;">${fmtDate(d.date)}</td>
+              <td>
+                <span class="activity-hours-text">${h}h ${String(m).padStart(2,'0')}min</span>
+                <div class="activity-hours-bar">
+                  <div class="activity-hours-fill" style="width:${pct}%"></div>
+                </div>
+              </td>
+              <td><span class="activity-sessions-badge">${d.sessions}</span></td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div class="activity-total-row">
+      <span>Total nos últimos 30 dias</span>
+      <strong>${totalH}h ${String(totalM).padStart(2,'0')}min em ${data.reduce((s,d)=>s+d.sessions,0)} sessões</strong>
+    </div>
+  `);
+};
+
+// 11. Alert Banners (in-dashboard)
 const checkUserAlerts = () => {
   if (!alertsContainer) return;
 
@@ -171,6 +333,7 @@ const checkUserAlerts = () => {
 
   alertsContainer.innerHTML = '';
   updatePageTitle();
+  updateOnlineSummary();
 
   if (pendingUsers.length === 0 && expiringUsers.length === 0) {
     alertsContainer.style.display = 'none';
@@ -212,7 +375,7 @@ const checkUserAlerts = () => {
   }
 };
 
-// 10. Polling — reliable 30-second background check
+// 12. Polling — reliable 30-second background check
 const startPolling = () => {
   if (pollingInterval) return;
   pollingInterval = setInterval(() => fetchProfiles(true), POLL_INTERVAL_MS);
@@ -504,10 +667,15 @@ const renderProfiles = () => {
     const tr = document.createElement('tr');
     tr.dataset.id = p.id;
 
+    const presence = isAdmin ? 'offline' : getPresenceStatus(p);
+
     tr.innerHTML = `
       <td class="td-name">
         <div class="user-cell">
-          <div class="avatar">${(p.full_name || '?')[0].toUpperCase()}</div>
+          <div class="avatar-wrapper">
+            <div class="avatar">${(p.full_name || '?')[0].toUpperCase()}</div>
+            <span class="presence-dot presence-${presence}" title="${presenceLabel[presence]}"></span>
+          </div>
           <div class="user-info">
             <span class="user-name">${p.full_name || 'Sem Nome'}</span>
             <span class="user-id" title="${p.id}">
@@ -556,6 +724,7 @@ const renderProfiles = () => {
               </button>
               ${p.approved ? `<button class="btn btn-icon btn-info-outline btn-extend-trial">+14d teste</button>` : ''}
               <button class="btn btn-icon btn-info-outline btn-edit-user" title="Editar informações do usuário">Editar</button>
+              ${p.approved ? `<button class="btn btn-icon btn-info-outline btn-activity" title="Ver atividade e horas online">Atividade</button>` : ''}
               <button class="btn btn-icon btn-danger-outline btn-delete-user" ${isSelf ? 'disabled' : ''} title="Excluir usuário permanentemente">Excluir</button>
             </div>
             ${p.approved ? `
@@ -574,6 +743,7 @@ const renderProfiles = () => {
       tr.querySelector('.btn-action-toggle')?.addEventListener('click', () => toggleApproval(p));
       tr.querySelector('.btn-extend-trial')?.addEventListener('click', () => extendTrial(p));
       tr.querySelector('.btn-edit-user')?.addEventListener('click', () => openEditModal(p));
+      tr.querySelector('.btn-activity')?.addEventListener('click', () => openActivityModal(p));
       tr.querySelector('.btn-delete-user')?.addEventListener('click', () => deleteUser(p));
 
       const datePicker = tr.querySelector('.date-picker');
@@ -592,6 +762,8 @@ searchInput.addEventListener('input', renderProfiles);
 editUserForm.addEventListener('submit', handleEditUserSubmit);
 btnCloseModal.addEventListener('click', closeEditModal);
 btnCancelEdit.addEventListener('click', closeEditModal);
+btnCloseActivity.addEventListener('click', closeActivityModal);
+activityModal.addEventListener('click', (e) => { if (e.target === activityModal) closeActivityModal(); });
 
 // Initialize App
 checkSession();

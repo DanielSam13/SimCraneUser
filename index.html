@@ -81,6 +81,10 @@
         </svg>
         <input type="text" id="search-input" placeholder="Buscar por nome ou ID...">
       </div>
+      <div class="online-summary" id="online-summary">
+        <span class="online-dot-pulse"></span>
+        <span id="online-count">0 online</span>
+      </div>
     </section>
 
     <!-- Alerts Container -->
@@ -153,6 +157,17 @@
           <button type="submit" class="btn btn-primary">Salvar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ACTIVITY MODAL -->
+  <div id="activity-modal" class="modal-overlay" style="display: none;">
+    <div class="glass-card modal-content activity-modal-content">
+      <div class="modal-header">
+        <h2 id="activity-modal-title">Atividade</h2>
+        <button id="btn-close-activity-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div id="activity-modal-body"></div>
     </div>
   </div>
 
