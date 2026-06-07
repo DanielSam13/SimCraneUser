@@ -1,0 +1,19 @@
+{
+  "name": "simcrane-user-pwa",
+  "version": "1.0.0",
+  "description": "Progressive Web App para gerenciamento de usuários do SimCrane Pro",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server -p 3000 -c-1",
+    "start": "npx http-server -p 3000 -c-1",
+    "deploy:setup": "vercel",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "pwa",
+    "simcrane",
+    "admin"
+  ],
+  "author": "",
+  "license": "ISC"
+}
