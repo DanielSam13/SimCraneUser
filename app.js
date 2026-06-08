@@ -369,6 +369,8 @@ const checkSession = async () => {
     
     // Logged in as admin
     currentUser = user;
+    // Atualiza last_seen_at ao restaurar sessão existente (sem alterar last_login_at)
+    supabase.rpc('record_heartbeat', { p_delta: 0 }).catch(err => console.warn('[Presence] record_heartbeat (restore) falhou:', err));
     showDashboard();
   } catch (err) {
     console.error('Session check failed', err);
@@ -409,6 +411,8 @@ const handleLogin = async (e) => {
     }
     
     currentUser = data.user;
+    // Registra horário de login e inicializa last_seen_at no banco
+    supabase.rpc('record_login').catch(err => console.warn('[Presence] record_login falhou:', err));
     showToast('Login realizado com sucesso!');
     showDashboard();
   } catch (err) {
@@ -457,10 +461,14 @@ const showDashboard = () => {
   ensureNotificationsAndPush();
   subscribeToProfiles();
   fetchProfiles();
-  // Re-renderiza a cada minuto para manter "online / visto há..." em dia mesmo sem novos eventos.
+  // A cada 60 s: envia heartbeat ao banco (atualiza last_seen_at + acumula segundos)
+  // e re-renderiza para manter "online / visto há..." em dia mesmo sem novos eventos.
   clearInterval(presenceTimer);
   presenceTimer = setInterval(() => {
-    if (currentUser && profiles.length) renderProfiles();
+    if (!currentUser) return;
+    supabase.rpc('record_heartbeat', { p_delta: 60 })
+      .catch(err => console.warn('[Presence] record_heartbeat falhou:', err));
+    if (profiles.length) renderProfiles();
   }, 60000);
 };
 
