@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simcrane-user-cache-v1';
+const CACHE_NAME = 'simcrane-user-cache-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -61,6 +61,43 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request);
+    })
+  );
+});
+
+// Push Event — exibe a notificação mesmo com o app fechado.
+// O payload é enviado pela Edge Function `notify-new-user`.
+self.addEventListener('push', (event) => {
+  let data = { title: 'SimCrane User', body: 'Nova notificação', url: './' };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch (err) {
+    if (event.data) data.body = event.data.text();
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: './icons/icon.svg',
+      badge: './icons/icon.svg',
+      tag: data.tag || 'simcrane-pending',
+      renotify: true,
+      data: { url: data.url || './' }
+    })
+  );
+});
+
+// Clique na notificação — foca uma janela aberta ou abre o app.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || './';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
   );
 });

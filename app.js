@@ -5,6 +5,16 @@ const SUPABASE_URL = 'https://ihgibjxqfmixeycngoje.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_5Nnux0U1qyHluC2QJaQ9Yg_L0gtIwIh';
 const ADMIN_EMAIL_LIMIT = 'eng.daniel.nascimento@gmail.com';
 
+// Web Push (VAPID) — cole aqui a sua CHAVE PÚBLICA VAPID.
+// Gere com:  npx web-push generate-vapid-keys
+// A chave PRIVADA vai como segredo da Edge Function (veja SETUP_NOTIFICACOES_E_PRESENCA.md).
+// Enquanto estiver vazia, o push (app fechado) fica desativado — as notificações em
+// primeiro plano (app aberto) continuam funcionando normalmente.
+const VAPID_PUBLIC_KEY = '';
+
+// Usuário é considerado "online" se foi visto nos últimos 2 minutos.
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000;
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 2. DOM Elements
@@ -39,6 +49,8 @@ const DAY_MS = 86400000;
 let profiles = [];
 let currentUser = null;
 let profilesSubscription = null;
+let refetchTimer = null;
+let presenceTimer = null;
 const notifiedUsers = new Set();
 const alertsContainer = document.getElementById('alerts-container');
 
@@ -62,6 +74,35 @@ const fmtDateTime = (iso) => {
   const hh = String(date.getHours()).padStart(2, '0');
   const min = String(date.getMinutes()).padStart(2, '0');
   return `${dd}/${mm}/${yyyy} às ${hh}:${min}`;
+};
+
+// Presence / Activity helpers
+const isOnline = (p) =>
+  !!p.last_seen_at && (Date.now() - new Date(p.last_seen_at).getTime()) < ONLINE_THRESHOLD_MS;
+
+// Formata segundos acumulados como "12h 30m", "45m" ou "—".
+const fmtDuration = (seconds) => {
+  const s = Number(seconds) || 0;
+  if (s <= 0) return '—';
+  const totalMin = Math.floor(s / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h}h${m > 0 ? ' ' + m + 'm' : ''}`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
+};
+
+// "agora", "há 5 min", "há 2 h", "há 3 d".
+const fmtRelative = (iso) => {
+  if (!iso) return null;
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60 * 1000) return 'agora';
+  const min = Math.floor(diff / 60000);
+  if (min < 60) return `há ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const d = Math.floor(h / 24);
+  return `há ${d} d`;
 };
 
 const getStatus = (p) => {
@@ -110,23 +151,84 @@ const showToast = (message, type = 'success', duration = 4000) => {
 };
 
 // Notification Helpers
-const sendNotification = (title, body) => {
-  if ('Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
+// Usa o Service Worker (registration.showNotification) quando disponível — funciona no
+// Android/Chrome e em PWAs instalados. Cai para `new Notification()` só como último recurso.
+const sendNotification = async (title, body) => {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
         body,
-        icon: './icons/icon.svg'
+        icon: './icons/icon.svg',
+        badge: './icons/icon.svg',
+        tag: 'simcrane-pending',
+        renotify: true
       });
-    } catch (err) {
-      console.error('Failed to trigger notification:', err);
+      return;
     }
+    new Notification(title, { body, icon: './icons/icon.svg' });
+  } catch (err) {
+    console.error('Failed to trigger notification:', err);
   }
 };
 
-const requestNotificationPermission = () => {
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+// Converte a chave VAPID (base64 url-safe) para Uint8Array, exigido pelo PushManager.
+const urlBase64ToUint8Array = (base64String) => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i);
+  return output;
+};
+
+// Registra a inscrição de Web Push deste admin e salva no Supabase para que a
+// Edge Function consiga enviar notificações mesmo com o app fechado.
+const setupPushSubscription = async () => {
+  if (!VAPID_PUBLIC_KEY) {
+    console.warn('[Push] VAPID_PUBLIC_KEY não configurada — push (app fechado) desativado.');
+    return;
   }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.warn('[Push] Navegador não suporta Web Push.');
+    return;
+  }
+  if (Notification.permission !== 'granted' || !currentUser) return;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    const json = sub.toJSON();
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .upsert({
+        user_id: currentUser.id,
+        endpoint: sub.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth
+      }, { onConflict: 'endpoint' });
+    if (error) throw error;
+    console.log('[Push] Inscrição registrada com sucesso.');
+  } catch (err) {
+    console.error('[Push] Falha ao registrar inscrição:', err);
+  }
+};
+
+// Pede permissão de notificação e, se concedida, registra o Web Push.
+const ensureNotificationsAndPush = async () => {
+  if (!('Notification' in window)) return;
+  let perm = Notification.permission;
+  if (perm === 'default') {
+    try { perm = await Notification.requestPermission(); } catch (e) { perm = Notification.permission; }
+  }
+  if (perm === 'granted') await setupPushSubscription();
 };
 
 const updatePageTitle = () => {
@@ -209,6 +311,12 @@ const checkUserAlerts = () => {
   }
 };
 
+// Recarrega a lista com debounce, coalescendo rajadas de eventos (ex.: heartbeats).
+const scheduleRefetch = () => {
+  clearTimeout(refetchTimer);
+  refetchTimer = setTimeout(fetchProfiles, 800);
+};
+
 // Supabase Real-time Subscription Helpers
 const subscribeToProfiles = () => {
   if (profilesSubscription) return;
@@ -222,7 +330,8 @@ const subscribeToProfiles = () => {
         showToast(`🔔 ${userName} aguarda aprovação de acesso!`, 'warning', 7000);
         sendNotification('Aprovação Pendente', `${userName} acabou de solicitar acesso ao SimCrane.`);
       }
-      fetchProfiles();
+      // Heartbeats geram muitos UPDATEs — agrupa as recargas para não martelar o banco.
+      scheduleRefetch();
     })
     .subscribe();
 };
@@ -318,6 +427,8 @@ const handleLogout = async () => {
     showToast('Erro ao sair: ' + error.message, 'error');
   } else {
     unsubscribeFromProfiles();
+    clearInterval(presenceTimer);
+    clearTimeout(refetchTimer);
     notifiedUsers.clear();
     currentUser = null;
     profiles = [];
@@ -343,9 +454,14 @@ const showDashboard = () => {
   authContainer.style.display = 'none';
   dashboardContainer.style.display = 'flex';
   adminEmailDisplay.textContent = currentUser?.email || ADMIN_EMAIL_LIMIT;
-  requestNotificationPermission();
+  ensureNotificationsAndPush();
   subscribeToProfiles();
   fetchProfiles();
+  // Re-renderiza a cada minuto para manter "online / visto há..." em dia mesmo sem novos eventos.
+  clearInterval(presenceTimer);
+  presenceTimer = setInterval(() => {
+    if (currentUser && profiles.length) renderProfiles();
+  }, 60000);
 };
 
 // 6. Profiles CRUD Operations
@@ -525,6 +641,16 @@ const renderProfiles = () => {
     const isSelf = p.id === currentUser?.id;
     const isAdmin = p.role === 'admin';
     const status = getStatus(p);
+
+    // Presença / atividade
+    const online = isOnline(p);
+    const seenText = online
+      ? 'Online agora'
+      : (p.last_seen_at ? `Visto ${fmtRelative(p.last_seen_at)}` : 'Nunca acessou');
+    const usageText = (p.total_online_seconds && p.total_online_seconds > 0)
+      ? ` · ⏱️ ${fmtDuration(p.total_online_seconds)} de uso`
+      : '';
+    const loginTitle = p.last_login_at ? `Último login: ${fmtDateTime(p.last_login_at)}` : 'Sem login registrado';
     
     // Check if trial is expiring in less than 3 days
     let isExpiringSoon = false;
@@ -552,13 +678,19 @@ const renderProfiles = () => {
     tr.innerHTML = `
       <td class="td-name">
         <div class="user-cell">
-          <div class="avatar">${(p.full_name || '?')[0].toUpperCase()}</div>
+          <div class="avatar-wrap">
+            <div class="avatar">${(p.full_name || '?')[0].toUpperCase()}</div>
+            <span class="avatar-status ${online ? 'is-online' : 'is-offline'}" title="${seenText}"></span>
+          </div>
           <div class="user-info">
             <span class="user-name">${p.full_name || 'Sem Nome'}</span>
             <span class="user-id" title="${p.id}">
-              ID: ${p.id.substring(0, 8)}... 
-              ${p.company_name ? ` | 🏢 ${p.company_name}` : ''} 
+              ID: ${p.id.substring(0, 8)}...
+              ${p.company_name ? ` | 🏢 ${p.company_name}` : ''}
               ${p.user_group ? ` | 👥 ${p.user_group}` : ''}
+            </span>
+            <span class="user-activity ${online ? 'online' : ''}" title="${loginTitle}">
+              ${online ? '<span class="online-dot"></span>' : ''}${seenText}${usageText}
             </span>
           </div>
         </div>
