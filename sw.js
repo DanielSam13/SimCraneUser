@@ -1,4 +1,4 @@
-const CACHE_NAME = 'simcrane-user-cache-v2';
+const CACHE_NAME = 'simcrane-user-cache-v3';
 const ASSETS = [
   './',
   './index.html',
