@@ -35,16 +35,16 @@ Deno.serve(async (req) => {
     if (eventType && eventType !== 'INSERT') {
       return json({ ignored: 'not an insert' });
     }
-    // Só avisa sobre cadastros ainda não aprovados.
-    if (record.approved === true) {
-      return json({ ignored: 'already approved' });
+    // Não notifica quando o registro criado é de um admin.
+    if (record.role === 'admin') {
+      return json({ ignored: 'admin profile' });
     }
 
     const name = record.full_name || 'Novo usuário';
     const body = JSON.stringify({
-      title: 'Aprovação Pendente',
-      body: `${name} acabou de solicitar acesso ao SimCrane.`,
-      tag: 'simcrane-pending',
+      title: 'Novo usuário cadastrado',
+      body: `${name} acabou de se cadastrar no SimCrane (período de teste ativo).`,
+      tag: 'simcrane-new-user',
       url: './',
     });
 

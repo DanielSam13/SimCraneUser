@@ -324,11 +324,13 @@ const subscribeToProfiles = () => {
     .channel('profiles-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
       console.log('Realtime profile update:', payload);
-      // Trigger instant warning for new signups
-      if (payload.eventType === 'INSERT' && !payload.new.approved) {
+      // Avisa instantaneamente sobre novos cadastros. Como o período de teste
+      // agora é aprovado automaticamente, a mensagem só informa que um novo
+      // usuário foi adicionado (não pede mais aprovação).
+      if (payload.eventType === 'INSERT' && payload.new.role !== 'admin') {
         const userName = payload.new.full_name || 'Novo usuário';
-        showToast(`🔔 ${userName} aguarda aprovação de acesso!`, 'warning', 7000);
-        sendNotification('Aprovação Pendente', `${userName} acabou de solicitar acesso ao SimCrane.`);
+        showToast(`✅ ${userName} cadastrou-se e já está em período de teste!`, 'success', 7000);
+        sendNotification('Novo usuário cadastrado', `${userName} acabou de se cadastrar no SimCrane e já está com o período de teste ativo.`);
       }
       // Heartbeats geram muitos UPDATEs — agrupa as recargas para não martelar o banco.
       scheduleRefetch();
