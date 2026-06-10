@@ -94,7 +94,23 @@ os admins que abriram o painel e concederam permissão de notificação.
 
 ---
 
-## 4. Presença (online / horas) — chamadas no APP CLIENTE
+## 3.5. Último login automático (SEM mexer no app cliente)
+
+Supabase → **SQL Editor** → rode `supabase/migrations/0003_sync_last_login.sql`.
+
+O Supabase já grava `last_sign_in_at` em `auth.users` a cada login (você vê em
+**Authentication → Users → "Last sign in at"**). Esse script copia esse horário
+para `profiles.last_login_at`/`last_seen_at` via trigger — então o painel passa
+a mostrar o **último login de todos os usuários imediatamente**, sem precisar
+alterar o app do SimCrane.
+
+> ⚠️ O que esse atalho **não** dá: o **tempo total de uso** (duração logado).
+> O `auth.users` só guarda o *instante* do último login, não quanto tempo a
+> pessoa ficou usando. Para o "⏱️ X de uso" você ainda precisa do passo 4.
+
+---
+
+## 4. Presença completa (online agora + horas) — chamadas no APP CLIENTE
 
 > ### Por que "ainda não informa quem está logado / o tempo de uso"?
 > O painel só sabe mostrar a presença — ele **não grava** o login/tempo dos
@@ -145,5 +161,6 @@ Com isso, no painel cada usuário passa a mostrar:
 | Não avisa novo usuário (app aberto) | Realtime de `profiles` desligado | Passo 2 |
 | Notificação não aparece no Android | usava `new Notification()` | já corrigido (usa `showNotification`) |
 | Nada chega com app fechado | sem Web Push | Passos 1 e 3 |
-| Não mostra quem está logado | SQL não rodado **ou** app cliente sem RPC | Passos 1 e 4 |
+| Não mostra o último login dos usuários | sem sincronizar `auth.users` | Passo 3.5 (sem mexer no cliente) |
+| Não mostra "online agora" em tempo real | app cliente sem `record_heartbeat` | Passos 1 e 4 |
 | Não mostra horas de uso | app cliente não chama `record_heartbeat` | Passos 1 e 4 |
