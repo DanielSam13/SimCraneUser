@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // 1. Supabase Initialization
 const SUPABASE_URL = 'https://ihgibjxqfmixeycngoje.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_5Nnux0U1qyHluC2QJaQ9Yg_L0gtIwIh';
+const SUPABASE_ANON_KEY = 'sb_publishable_6m5Uqcf9ESDYvjDYJzit9Q_M2ppw65S';
 const ADMIN_EMAIL_LIMIT = 'eng.daniel.nascimento@gmail.com';
 
 // Web Push (VAPID) — cole aqui a sua CHAVE PÚBLICA VAPID.
