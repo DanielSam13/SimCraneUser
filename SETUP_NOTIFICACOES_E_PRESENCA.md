@@ -100,6 +100,29 @@ Com isso, no painel cada usuário passa a mostrar:
 
 ---
 
+## 5. Regra anti-reuso de teste (aprovação obrigatória)
+
+Quem **já usou o período de teste** com um e-mail **não recebe acesso
+automático** ao se cadastrar de novo — entra como **Acesso Pendente** e só
+libera com a **aprovação do admin**.
+
+Para ativar, rode no **SQL Editor** o arquivo:
+`supabase/migrations/0002_trial_reuse_block.sql`
+
+Isso cria:
+- a coluna `trial_reused` em `profiles` (o painel mostra o selo **"Reincidente"**);
+- a tabela `trial_history`, que guarda **por e-mail** quem já consumiu o teste
+  (sobrevive à exclusão do perfil — recriar a conta não devolve o teste);
+- o gatilho que **registra** o e-mail quando um trial começa;
+- o gatilho que, em todo novo cadastro, **bloqueia o acesso automático** de
+  e-mails reincidentes (`approved = false`, sem novo trial);
+- um *backfill* que já marca os usuários atuais que usaram teste.
+
+> O admin continua podendo liberar manualmente pelo botão **"Aprovar"** (ou
+> definir uma licença com data de validade).
+
+---
+
 ## Resumo do que cada parte resolve
 
 | Sintoma | Causa | Onde resolve |
@@ -109,3 +132,4 @@ Com isso, no painel cada usuário passa a mostrar:
 | Nada chega com app fechado | sem Web Push | Passos 1 e 3 |
 | Não mostra quem está logado | não existia presença | Passos 1 e 4 |
 | Não mostra horas de uso | não existia contagem | Passos 1 e 4 |
+| Reincidente ganhava teste de novo | sem histórico por e-mail | Passo 5 |

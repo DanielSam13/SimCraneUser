@@ -570,6 +570,12 @@ td {
   color: #f87171;
 }
 
+.badge-reused {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  margin-left: 6px;
+}
+
 /* Validity Info Column */
 .validity-cell {
   font-size: 12px;

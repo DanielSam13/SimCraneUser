@@ -706,6 +706,7 @@ const renderProfiles = () => {
       
       <td class="td-status">
         <span class="status-badge ${statusClass}">${status.label}</span>
+        ${(!isAdmin && p.trial_reused) ? '<span class="status-badge badge-reused" title="Este e-mail já usou o período de teste. Não recebe acesso automático — requer aprovação manual.">Reincidente</span>' : ''}
         ${isExpiringSoon ? '<span class="pulse-warning" title="Trial expira em menos de 3 dias!">⚠️</span>' : ''}
       </td>
       
@@ -716,6 +717,11 @@ const renderProfiles = () => {
               <div class="validity-row" style="color: var(--accent-color); font-weight: 500;" title="Horário de cadastro e solicitação de aprovação">
                 <span>🕒</span> <span>Solicitado em:<br>${fmtDateTime(p.created_at)}</span>
               </div>
+              ${p.trial_reused ? `
+                <div class="validity-row" style="color: #fb923c; font-weight: 500;" title="E-mail já utilizou o período de teste anteriormente">
+                  <span>🔁</span> <span>Já usou teste — aprovação manual</span>
+                </div>
+              ` : ''}
             </div>
           ` : `
             <div class="validity-cell">
