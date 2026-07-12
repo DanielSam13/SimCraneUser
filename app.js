@@ -46,6 +46,8 @@ const btnCancelEdit = document.getElementById('btn-cancel-edit');
 // 3. Constants and App State
 const TRIAL_DAYS = 14;
 const DAY_MS = 86400000;
+// Rótulos amigáveis dos planos de assinatura (Stripe → painel).
+const PLAN_LABELS = { mensal: 'Mensal', semestral: 'Semestral', anual: 'Anual' };
 let profiles = [];
 let currentUser = null;
 let profilesSubscription = null;
@@ -706,6 +708,9 @@ const renderProfiles = () => {
       
       <td class="td-status">
         <span class="status-badge ${statusClass}">${status.label}</span>
+        ${(!isAdmin && p.plan && status.key === 'licensed') ? `<span class="status-badge badge-plan" title="Assinatura ${PLAN_LABELS[p.plan] || p.plan}${p.auto_renew === false ? ' — renovação cancelada' : ' — renova automaticamente'}">${PLAN_LABELS[p.plan] || p.plan}${p.auto_renew === false ? ' ⏹' : ' ♻'}</span>` : ''}
+        ${(!isAdmin && p.subscription_status === 'past_due') ? '<span class="status-badge badge-pastdue" title="A última cobrança falhou. O acesso vale até a validade atual.">Pagamento pendente</span>' : ''}
+        ${(!isAdmin && p.subscription_status === 'canceled' && p.plan) ? '<span class="status-badge badge-canceled" title="Assinatura cancelada. O acesso permanece até o fim do período já pago.">Cancelada</span>' : ''}
         ${(!isAdmin && p.trial_reused) ? '<span class="status-badge badge-reused" title="Este e-mail já usou o período de teste. Não recebe acesso automático — requer aprovação manual.">Reincidente</span>' : ''}
         ${isExpiringSoon ? '<span class="pulse-warning" title="Trial expira em menos de 3 dias!">⚠️</span>' : ''}
       </td>
