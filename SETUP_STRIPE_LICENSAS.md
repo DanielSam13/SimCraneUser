@@ -38,8 +38,10 @@ create-checkout-session (Edge Function)  ──►  Checkout do Stripe (paga com
 
 ## 1. Rodar o SQL
 
-Supabase → **SQL Editor** → cole e rode:
-`supabase/migrations/0003_license_subscriptions.sql`
+**Opção A — pelo painel (sem CLI):** Supabase → **SQL Editor** → cole e rode
+`supabase/migrations/0003_license_subscriptions.sql`.
+
+**Opção B — pela CLI** (se já fez o `supabase link`): `supabase db push`.
 
 Isso adiciona em `profiles` as colunas `plan`, `subscription_status`,
 `stripe_customer_id`, `stripe_subscription_id`, `auto_renew` e cria a tabela
@@ -115,17 +117,34 @@ supabase functions deploy stripe-webhook --no-verify-jwt
 
 ---
 
-## 5. Chamar o checkout no app cliente (SimCrane Pro)
+## 5. Oferecer os planos ao usuário
 
-No app onde o usuário escolhe o plano, com o mesmo cliente Supabase já
-autenticado:
+### Opção A (mais fácil) — usar a página pronta `planos.html`
+
+O repositório já inclui **`planos.html`**: uma página autossuficiente que faz
+o login do usuário, mostra os 3 planos e chama o checkout sozinha. Basta:
+
+1. **Publicá-la** junto com o painel (na Vercel, ela já sobe no deploy e fica
+   acessível em `https://SEU-APP/planos.html`).
+2. Abrir o arquivo e **editar só os preços** (`R$ XX`) para os valores que você
+   cadastrou no Stripe. As credenciais públicas do Supabase já vêm preenchidas
+   (as mesmas do `app.js`).
+3. Mandar o usuário para essa URL (link no SimCrane Pro, e-mail, etc.).
+
+Depois do pagamento, o Stripe chama o `stripe-webhook`, o acesso é liberado
+automaticamente e o usuário volta para a `CHECKOUT_SUCCESS_URL`.
+
+### Opção B — integrar direto no SimCrane Pro
+
+Se preferir montar os botões dentro do próprio app cliente, com o mesmo cliente
+Supabase já autenticado:
 
 ```js
 async function comprarPlano(plano /* 'mensal' | 'semestral' | 'anual' */) {
   const { data: { session } } = await supabase.auth.getSession();
 
   const res = await fetch(
-    'https://<seu-projeto>.supabase.co/functions/v1/create-checkout-session',
+    'https://ihgibjxqfmixeycngoje.supabase.co/functions/v1/create-checkout-session',
     {
       method: 'POST',
       headers: {
@@ -140,9 +159,6 @@ async function comprarPlano(plano /* 'mensal' | 'semestral' | 'anual' */) {
   window.location.href = url; // redireciona ao Checkout do Stripe
 }
 ```
-
-Depois do pagamento, o Stripe chama o `stripe-webhook`, que libera o acesso
-automaticamente. O usuário volta para a `CHECKOUT_SUCCESS_URL`.
 
 ---
 
