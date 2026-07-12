@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimCrane Pro — Planos</title>
+  <meta name="theme-color" content="#111827">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+    :root {
+      --bg-color: #0b0f19;
+      --panel-bg: rgba(31, 41, 55, 0.7);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent-color: #f59e0b;
+      --success-color: #10b981;
+      --danger-color: #ef4444;
+      --info-color: #3b82f6;
+      --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-color);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.08) 0, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.08) 0, transparent 50%),
+        radial-gradient(at 50% 50%, rgba(17, 24, 39, 1) 0, rgba(11, 15, 25, 1) 100%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 32px 16px;
+    }
+    .wrap { width: 100%; max-width: 960px; }
+    .logo-header { text-align: center; margin-bottom: 8px; }
+    .logo-header img { width: 56px; height: 56px; }
+    .logo-header h1 { font-size: 26px; font-weight: 800; margin-top: 8px; }
+    .logo-header p { color: var(--text-muted); font-size: 14px; }
+
+    .glass-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 28px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    /* Login */
+    #login-view { max-width: 420px; margin: 40px auto 0; }
+    .form-group { margin-bottom: 18px; }
+    label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+    input[type=email], input[type=password] {
+      width: 100%; padding: 13px 14px; border-radius: 10px;
+      background: rgba(0,0,0,0.25); border: 1px solid var(--panel-border);
+      color: var(--text-main); font-size: 15px; font-family: inherit;
+    }
+    input:focus { outline: none; border-color: var(--accent-color); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 100%; padding: 13px 16px; border-radius: 10px; border: none;
+      font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: transform .15s ease, opacity .15s ease;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: var(--accent-color); color: #1a1205; }
+    .btn-outline { background: transparent; color: var(--text-muted); border: 1px solid var(--panel-border); }
+
+    .error-box {
+      display: none; background: rgba(239,68,68,.12); color: #fca5a5;
+      border: 1px solid rgba(239,68,68,.35); border-radius: 10px;
+      padding: 11px 13px; font-size: 13px; margin-bottom: 16px;
+    }
+    .banner {
+      border-radius: 12px; padding: 14px 16px; font-size: 14px; font-weight: 500;
+      margin-bottom: 20px; display: none;
+    }
+    .banner-success { background: rgba(16,185,129,.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,.35); }
+    .banner-cancel  { background: rgba(245,158,11,.12); color: #fcd34d; border: 1px solid rgba(245,158,11,.35); }
+
+    /* Planos */
+    #plans-view { display: none; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 20px; gap: 12px; }
+    .topbar .who { font-size: 14px; color: var(--text-muted); }
+    .topbar .who b { color: var(--text-main); }
+    .btn-logout {
+      background: transparent; border: 1px solid var(--panel-border); color: var(--text-muted);
+      border-radius: 9px; padding: 8px 14px; font-family: inherit; font-size: 13px; cursor: pointer;
+    }
+    .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+    .plan-card { display: flex; flex-direction: column; position: relative; }
+    .plan-card.featured { border-color: rgba(245,158,11,.5); box-shadow: 0 0 0 1px rgba(245,158,11,.25); }
+    .plan-tag {
+      position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+      background: var(--accent-color); color: #1a1205; font-size: 11px; font-weight: 800;
+      padding: 4px 12px; border-radius: 999px; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .plan-name { font-size: 18px; font-weight: 700; }
+    .plan-desc { color: var(--text-muted); font-size: 13px; margin-top: 4px; min-height: 34px; }
+    .plan-price { font-size: 30px; font-weight: 800; margin: 16px 0 2px; }
+    .plan-price small { font-size: 14px; font-weight: 500; color: var(--text-muted); }
+    .plan-note { color: var(--text-muted); font-size: 12px; margin-bottom: 18px; }
+    .plan-card .btn { margin-top: auto; }
+
+    .footer-note { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 28px; }
+    .spinner {
+      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #1a1205; border-radius: 50%; animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="logo-header">
+      <img src="icons/icon.svg" alt="SimCrane">
+      <h1>SimCrane Pro</h1>
+      <p>Escolha o seu plano de acesso</p>
+    </div>
+
+    <!-- Banners de retorno do Stripe -->
+    <div id="banner-success" class="banner banner-success">✅ Pagamento confirmado! Seu acesso já foi liberado.</div>
+    <div id="banner-cancel"  class="banner banner-cancel">Pagamento não concluído. Você pode tentar novamente quando quiser.</div>
+
+    <!-- LOGIN -->
+    <div id="login-view">
+      <div class="glass-card">
+        <div id="login-error" class="error-box"></div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="email">E-mail</label>
+            <input type="email" id="email" required placeholder="voce@email.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="password">Senha</label>
+            <input type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
+          </div>
+          <button type="submit" id="btn-login" class="btn btn-primary">Entrar para assinar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- PLANOS -->
+    <div id="plans-view">
+      <div class="topbar">
+        <div class="who">Logado como <b id="user-email"></b></div>
+        <button id="btn-logout" class="btn-logout">Sair</button>
+      </div>
+
+      <div class="plans-grid">
+        <div class="glass-card plan-card">
+          <div class="plan-name">Mensal</div>
+          <div class="plan-desc">Acesso completo, cobrado todo mês.</div>
+          <!-- EDITE o preço conforme o que você cadastrou no Stripe -->
+          <div class="plan-price">R$ XX<small>/mês</small></div>
+          <div class="plan-note">Renova automaticamente</div>
+          <button class="btn btn-primary btn-plan" data-plan="mensal">Assinar</button>
+        </div>
+
+        <div class="glass-card plan-card featured">
+          <div class="plan-tag">Mais popular</div>
+          <div class="plan-name">Semestral</div>
+          <div class="plan-desc">6 meses de acesso com melhor custo-benefício.</div>
+          <div class="plan-price">R$ XX<small>/6 meses</small></div>
+          <div class="plan-note">Renova a cada 6 meses</div>
+          <button class="btn btn-primary btn-plan" data-plan="semestral">Assinar</button>
+        </div>
+
+        <div class="glass-card plan-card">
+          <div class="plan-name">Anual</div>
+          <div class="plan-desc">12 meses de acesso pelo menor preço por mês.</div>
+          <div class="plan-price">R$ XX<small>/ano</small></div>
+          <div class="plan-note">Renova a cada 12 meses</div>
+          <button class="btn btn-primary btn-plan" data-plan="anual">Assinar</button>
+        </div>
+      </div>
+
+      <div id="plans-error" class="error-box" style="margin-top: 20px;"></div>
+      <p class="footer-note">Pagamento seguro processado pelo Stripe. Você pode cancelar quando quiser.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    // Mesmas credenciais públicas usadas no painel (app.js).
+    const SUPABASE_URL = 'https://ihgibjxqfmixeycngoje.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_6m5Uqcf9ESDYvjDYJzit9Q_M2ppw65S';
+    const CHECKOUT_FN = `${SUPABASE_URL}/functions/v1/create-checkout-session`;
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const loginView = document.getElementById('login-view');
+    const plansView = document.getElementById('plans-view');
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const btnLogin = document.getElementById('btn-login');
+    const userEmail = document.getElementById('user-email');
+    const plansError = document.getElementById('plans-error');
+
+    const showError = (el, msg) => { el.textContent = msg; el.style.display = 'block'; };
+    const hide = (el) => { el.style.display = 'none'; };
+
+    // Banners de retorno do Stripe (?checkout=success|cancel).
+    const params = new URLSearchParams(location.search);
+    if (params.get('checkout') === 'success') document.getElementById('banner-success').style.display = 'block';
+    if (params.get('checkout') === 'cancel')  document.getElementById('banner-cancel').style.display = 'block';
+
+    const renderSession = (session) => {
+      if (session?.user) {
+        loginView.style.display = 'none';
+        plansView.style.display = 'block';
+        userEmail.textContent = session.user.email || '';
+      } else {
+        loginView.style.display = 'block';
+        plansView.style.display = 'none';
+      }
+    };
+
+    // Login por e-mail/senha (mesmo esquema do painel).
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hide(loginError);
+      btnLogin.disabled = true;
+      const original = btnLogin.textContent;
+      btnLogin.textContent = 'Entrando...';
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value,
+        });
+        if (error) throw error;
+        renderSession(data.session);
+      } catch (err) {
+        showError(loginError, err.message || 'Não foi possível entrar. Verifique e-mail e senha.');
+      } finally {
+        btnLogin.disabled = false;
+        btnLogin.textContent = original;
+      }
+    });
+
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      renderSession(null);
+    });
+
+    // Ao escolher um plano: chama a Edge Function e redireciona ao Checkout.
+    document.querySelectorAll('.btn-plan').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        hide(plansError);
+        const plan = btn.dataset.plan;
+        const buttons = document.querySelectorAll('.btn-plan');
+        buttons.forEach((b) => (b.disabled = true));
+        const original = btn.textContent;
+        btn.innerHTML = '<span class="spinner"></span>';
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error('Sessão expirada. Entre novamente.');
+
+          const res = await fetch(CHECKOUT_FN, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ plan }),
+          });
+          const out = await res.json();
+          if (!res.ok || !out.url) throw new Error(out.error || 'Falha ao iniciar o pagamento.');
+          location.href = out.url; // vai para o Stripe Checkout
+        } catch (err) {
+          showError(plansError, err.message || 'Erro ao iniciar o pagamento.');
+          buttons.forEach((b) => (b.disabled = false));
+          btn.textContent = original;
+        }
+      });
+    });
+
+    // Estado inicial: se já há sessão, pula direto para os planos.
+    const { data: { session } } = await supabase.auth.getSession();
+    renderSession(session);
+  </script>
+</body>
+</html>
