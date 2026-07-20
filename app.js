@@ -28,6 +28,8 @@ const btnLogin = document.getElementById('btn-login');
 const btnLogout = document.getElementById('btn-logout');
 const adminEmailDisplay = document.getElementById('admin-email-display');
 const searchInput = document.getElementById('search-input');
+const statsIndex = document.getElementById('stats-index');
+const btnClearFilter = document.getElementById('btn-clear-filter');
 const profilesList = document.getElementById('profiles-list');
 const dashboardLoading = document.getElementById('dashboard-loading');
 const emptyState = document.getElementById('empty-state');
@@ -49,6 +51,8 @@ const DAY_MS = 86400000;
 // Rótulos amigáveis dos planos de assinatura (Stripe → painel).
 const PLAN_LABELS = { mensal: 'Mensal', semestral: 'Semestral', anual: 'Anual' };
 let profiles = [];
+// Filtro ativo do índice (null = mostra todos). Um dos: trial, expired, licensed, pending, accessed.
+let statusFilter = null;
 let currentUser = null;
 let profilesSubscription = null;
 let refetchTimer = null;
@@ -125,6 +129,25 @@ const getStatus = (p) => {
   }
   
   return { key: 'expired', label: 'Trial Vencido' };
+};
+
+// Um usuário "já acessou o app" se tem login registrado ou já foi visto online.
+const hasAccessed = (p) => !!p.last_login_at || !!p.last_seen_at || (Number(p.total_online_seconds) || 0) > 0;
+
+// Cards do índice (clicáveis). A ordem define a exibição da esquerda para a direita.
+const STAT_CARDS = [
+  { key: 'trial',    label: 'Em teste',              icon: '🧪', cls: 'stat-trial' },
+  { key: 'expired',  label: 'Trial vencido',         icon: '⌛', cls: 'stat-expired' },
+  { key: 'licensed', label: 'Licença ativa',         icon: '🔑', cls: 'stat-licensed' },
+  { key: 'pending',  label: 'Aguardando aprovação',  icon: '🔔', cls: 'stat-pending' },
+  { key: 'accessed', label: 'Já acessaram o app',    icon: '👥', cls: 'stat-accessed' },
+];
+
+// Um perfil pertence a uma categoria do índice? (Admins não entram nas contagens.)
+const matchesStatFilter = (p, key) => {
+  if (p.role === 'admin') return false;
+  if (key === 'accessed') return hasAccessed(p);
+  return getStatus(p).key === key;
 };
 
 // Toast Notifications
@@ -624,9 +647,46 @@ const handleEditUserSubmit = async (e) => {
 };
 
 // 7. Rendering Logic
+
+// Renderiza o índice de totais (cards clicáveis). O card ativo fica destacado e,
+// ao ser clicado novamente, limpa o filtro.
+const renderStats = () => {
+  if (!statsIndex) return;
+  statsIndex.innerHTML = '';
+
+  STAT_CARDS.forEach(card => {
+    const count = profiles.filter(p => matchesStatFilter(p, card.key)).length;
+    const isActive = statusFilter === card.key;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `stat-card ${card.cls}${isActive ? ' is-active' : ''}`;
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    btn.title = isActive ? 'Clique para limpar o filtro' : `Filtrar: ${card.label}`;
+    btn.innerHTML = `
+      <span class="stat-icon">${card.icon}</span>
+      <span class="stat-value">${count}</span>
+      <span class="stat-label">${card.label}</span>
+    `;
+    btn.addEventListener('click', () => {
+      statusFilter = (statusFilter === card.key) ? null : card.key;
+      renderProfiles();
+    });
+    statsIndex.appendChild(btn);
+  });
+
+  if (btnClearFilter) {
+    btnClearFilter.style.display = statusFilter ? 'inline-flex' : 'none';
+  }
+};
+
 const renderProfiles = () => {
+  renderStats();
   const filter = searchInput.value.toLowerCase().trim();
   const filtered = profiles.filter(p => {
+    // Filtro do índice: mostra somente a categoria escolhida.
+    if (statusFilter && !matchesStatFilter(p, statusFilter)) return false;
+
     const nameMatch = (p.full_name || '').toLowerCase().includes(filter);
     const idMatch = p.id.toLowerCase().includes(filter);
     const companyMatch = (p.company_name || '').toLowerCase().includes(filter);
@@ -822,6 +882,12 @@ const renderProfiles = () => {
 loginForm.addEventListener('submit', handleLogin);
 btnLogout.addEventListener('click', handleLogout);
 searchInput.addEventListener('input', renderProfiles);
+if (btnClearFilter) {
+  btnClearFilter.addEventListener('click', () => {
+    statusFilter = null;
+    renderProfiles();
+  });
+}
 editUserForm.addEventListener('submit', handleEditUserSubmit);
 btnCloseModal.addEventListener('click', closeEditModal);
 btnCancelEdit.addEventListener('click', closeEditModal);

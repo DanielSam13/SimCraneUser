@@ -394,6 +394,113 @@ body {
   fill: var(--text-muted);
 }
 
+/* Stats Index (clickable status filters) */
+.stats-index {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.stat-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 16px 16px 20px;
+  border-radius: 14px;
+  background: rgba(31, 41, 55, 0.5);
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  text-align: left;
+  overflow: hidden;
+  transition: var(--transition-smooth);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--stat-color, var(--text-muted));
+  opacity: 0.85;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  background: rgba(31, 41, 55, 0.75);
+  border-color: var(--stat-color, var(--panel-border));
+}
+
+.stat-card.is-active {
+  border-color: var(--stat-color);
+  background: rgba(31, 41, 55, 0.9);
+  box-shadow: 0 0 0 2px var(--stat-color) inset, 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.stat-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--stat-color, #fff);
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.stat-trial    { --stat-color: #60a5fa; }
+.stat-expired  { --stat-color: #f87171; }
+.stat-licensed { --stat-color: #34d399; }
+.stat-pending  { --stat-color: #fbbf24; }
+.stat-accessed { --stat-color: #c084fc; }
+
+/* Clear-filter button in toolbar */
+.clear-filter-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  cursor: pointer;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  transition: var(--transition-smooth);
+}
+
+.clear-filter-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+@media (max-width: 900px) {
+  .stats-index {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .stats-index {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stat-value {
+    font-size: 22px;
+  }
+}
+
 /* User management Table & List */
 .panel-container {
   width: 100%;
