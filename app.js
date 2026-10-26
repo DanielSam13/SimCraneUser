@@ -61,6 +61,22 @@ const notifiedUsers = new Set();
 const alertsContainer = document.getElementById('alerts-container');
 
 // 4. Utility Functions
+// Escapa texto vindo do banco antes de interpolar em innerHTML. Nome, empresa e
+// grupo são editáveis pelo próprio usuário, então sem isso viram XSS no painel.
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[ch]));
+
+// Data local (yyyy-mm-dd) para o <input type="date">. Usar o trecho UTC da ISO
+// mostra o dia seguinte para licenças gravadas como 23:59:59 no horário local.
+const toDateInputValue = (iso) => {
+  if (!iso) return '';
+  const date = new Date(iso);
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${date.getFullYear()}-${mm}-${dd}`;
+};
+
 const fmtDate = (iso) => {
   if (!iso) return '—';
   const date = new Date(iso);
@@ -290,7 +306,7 @@ const checkUserAlerts = () => {
 
   // 1. Pending users alert
   if (pendingUsers.length > 0) {
-    const names = pendingUsers.map(u => `<strong>${u.full_name || 'Sem Nome'}</strong>`).join(', ');
+    const names = pendingUsers.map(u => `<strong>${escapeHtml(u.full_name || 'Sem Nome')}</strong>`).join(', ');
     const alert = document.createElement('div');
     alert.className = 'alert-banner';
     alert.innerHTML = `
@@ -352,7 +368,7 @@ const subscribeToProfiles = () => {
       // Trigger instant warning for new signups
       if (payload.eventType === 'INSERT' && !payload.new.approved) {
         const userName = payload.new.full_name || 'Novo usuário';
-        showToast(`🔔 ${userName} aguarda aprovação de acesso!`, 'warning', 7000);
+        showToast(`🔔 ${escapeHtml(userName)} aguarda aprovação de acesso!`, 'warning', 7000);
         sendNotification('Aprovação Pendente', `${userName} acabou de solicitar acesso ao SimCrane.`);
       }
       // Heartbeats geram muitos UPDATEs — agrupa as recargas para não martelar o banco.
@@ -749,15 +765,15 @@ const renderProfiles = () => {
       <td class="td-name">
         <div class="user-cell">
           <div class="avatar-wrap">
-            <div class="avatar">${(p.full_name || '?')[0].toUpperCase()}</div>
+            <div class="avatar">${escapeHtml((p.full_name || '?')[0].toUpperCase())}</div>
             <span class="avatar-status ${online ? 'is-online' : 'is-offline'}" title="${seenText}"></span>
           </div>
           <div class="user-info">
-            <span class="user-name">${p.full_name || 'Sem Nome'}</span>
+            <span class="user-name">${escapeHtml(p.full_name || 'Sem Nome')}</span>
             <span class="user-id" title="${p.id}">
               ID: ${p.id.substring(0, 8)}...
-              ${p.company_name ? ` | 🏢 ${p.company_name}` : ''}
-              ${p.user_group ? ` | 👥 ${p.user_group}` : ''}
+              ${p.company_name ? ` | 🏢 ${escapeHtml(p.company_name)}` : ''}
+              ${p.user_group ? ` | 👥 ${escapeHtml(p.user_group)}` : ''}
             </span>
             <span class="user-activity ${online ? 'online' : ''}" title="${loginTitle}">
               ${online ? '<span class="online-dot"></span>' : ''}${seenText}${usageText}
@@ -768,7 +784,7 @@ const renderProfiles = () => {
       
       <td class="td-status">
         <span class="status-badge ${statusClass}">${status.label}</span>
-        ${(!isAdmin && p.plan && status.key === 'licensed') ? `<span class="status-badge badge-plan" title="Assinatura ${PLAN_LABELS[p.plan] || p.plan}${p.auto_renew === false ? ' — renovação cancelada' : ' — renova automaticamente'}">${PLAN_LABELS[p.plan] || p.plan}${p.auto_renew === false ? ' ⏹' : ' ♻'}</span>` : ''}
+        ${(!isAdmin && p.plan && status.key === 'licensed') ? `<span class="status-badge badge-plan" title="Assinatura ${escapeHtml(PLAN_LABELS[p.plan] || p.plan)}${p.auto_renew === false ? ' — renovação cancelada' : ' — renova automaticamente'}">${escapeHtml(PLAN_LABELS[p.plan] || p.plan)}${p.auto_renew === false ? ' ⏹' : ' ♻'}</span>` : ''}
         ${(!isAdmin && p.subscription_status === 'past_due') ? '<span class="status-badge badge-pastdue" title="A última cobrança falhou. O acesso vale até a validade atual.">Pagamento pendente</span>' : ''}
         ${(!isAdmin && p.subscription_status === 'canceled' && p.plan) ? '<span class="status-badge badge-canceled" title="Assinatura cancelada. O acesso permanece até o fim do período já pago.">Cancelada</span>' : ''}
         ${(!isAdmin && p.trial_reused) ? '<span class="status-badge badge-reused" title="Este e-mail já usou o período de teste. Não recebe acesso automático — requer aprovação manual.">Reincidente</span>' : ''}
@@ -826,7 +842,7 @@ const renderProfiles = () => {
             
             ${p.approved ? `
               <div class="license-form">
-                <input type="date" class="date-picker" value="${p.access_expires_at ? p.access_expires_at.split('T')[0] : ''}">
+                <input type="date" class="date-picker" value="${toDateInputValue(p.access_expires_at)}">
                 <button class="btn btn-icon btn-primary btn-small btn-save-license" title="Salvar validade da licença">Salvar</button>
                 ${p.access_expires_at ? `
                   <button class="btn btn-icon btn-danger-outline btn-small btn-clear-license" title="Limpar licença">✕</button>
