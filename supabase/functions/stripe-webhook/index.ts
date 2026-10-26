@@ -117,6 +117,9 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error(`Erro ao processar ${event.type}:`, err);
+    // Libera o event.id para que o reenvio do Stripe seja processado de novo;
+    // senão a nova tentativa cairia em "duplicate event" e a licença se perderia.
+    await supabase.from('billing_events').delete().eq('id', event.id);
     return json({ error: String(err) }, 500);
   }
 
