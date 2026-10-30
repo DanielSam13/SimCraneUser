@@ -242,9 +242,15 @@
         <div class="form-group">
           <label for="module-key">Chave (usada pelo app)</label>
           <div class="input-wrapper">
-            <input type="text" id="module-key" required pattern="[a-z0-9][a-z0-9_\-]{1,40}" placeholder="ex: simulador" autocomplete="off" spellcheck="false">
+            <input type="text" id="module-key" required pattern="[a-z0-9][a-z0-9_\-]{1,40}" placeholder="ex: cadsim" autocomplete="off" spellcheck="false" list="pro-module-keys">
+            <datalist id="pro-module-keys">
+              <option value="cadsim">CADSim</option>
+              <option value="portico">Pórtico</option>
+              <option value="cinematic">Cinematic</option>
+            </datalist>
           </div>
           <small class="hint">Minúsculas, números, "-" ou "_". Não pode ser alterada depois.</small>
+          <small class="hint key-status" id="module-key-status"></small>
         </div>
 
         <div class="form-group">

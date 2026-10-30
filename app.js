@@ -77,6 +77,7 @@ const moduleKeyInput = document.getElementById('module-key');
 const moduleDescriptionInput = document.getElementById('module-description');
 const moduleOrderInput = document.getElementById('module-order');
 const moduleDefaultInput = document.getElementById('module-default');
+const moduleKeyStatus = document.getElementById('module-key-status');
 const btnCloseModuleModal = document.getElementById('btn-close-module-modal');
 const btnCancelModule = document.getElementById('btn-cancel-module');
 const btnSaveModule = document.getElementById('btn-save-module');
@@ -88,6 +89,15 @@ const DAY_MS = 86400000;
 const PLAN_LABELS = { mensal: 'Mensal', semestral: 'Semestral', anual: 'Anual' };
 // Duração de cada plano em dias — usada só para desenhar a barra de validade.
 const PLAN_DAYS = { mensal: 30, semestral: 182, anual: 365 };
+// Módulos que o SimCrane Pro realmente bloqueia (botões da barra lateral).
+// Qualquer outra chave do catálogo é só informativa: o app não a verifica.
+// `legacy` é o que o app faz enquanto a chave não está no catálogo.
+const PRO_MODULES = [
+  { key: 'cadsim',    name: 'CADSim',    icon: '📐', description: 'Editor CAD que abre por cima do simulador.',      default_enabled: false, legacy: 'só administradores' },
+  { key: 'portico',   name: 'Pórtico',   icon: '🏗️', description: 'Pórtico hidráulico: operação, LMI e lingadas.',   default_enabled: true,  legacy: 'livre para todos' },
+  { key: 'cinematic', name: 'Cinematic', icon: '🎬', description: 'Roteiro de içamento filmado e exportado em MP4.', default_enabled: false, legacy: 'só administradores' },
+];
+const proModule = (key) => PRO_MODULES.find(m => m.key === key);
 const VIEWS = {
   users:   { title: 'Usuários', subtitle: 'Aprovação, licenças e acesso aos módulos' },
   modules: { title: 'Módulos',  subtitle: 'Catálogo de módulos do SimCrane Pro e quem tem acesso' }
@@ -269,6 +279,12 @@ const activeEndTime = (p) => {
 const hasAccessed = (p) => !!p.last_login_at || !!p.last_seen_at || (Number(p.total_online_seconds) || 0) > 0;
 
 const userModules = (p) => Array.isArray(p.modules) ? p.modules : [];
+
+// Catálogo com os módulos controlados pelo app primeiro (na ordem de PRO_MODULES).
+const orderedModules = () => {
+  const rank = (m) => { const i = PRO_MODULES.findIndex(d => d.key === m.key); return i < 0 ? PRO_MODULES.length : i; };
+  return modules.map((m, i) => ({ m, i })).sort((a, b) => rank(a.m) - rank(b.m) || a.i - b.i).map(x => x.m);
+};
 
 // Cards do índice (clicáveis). A ordem define a exibição da esquerda para a direita.
 const STAT_CARDS = [
@@ -885,6 +901,7 @@ const openModuleModal = (mod = null) => {
   moduleDescriptionInput.value = mod?.description || '';
   moduleOrderInput.value = mod ? mod.sort_order : (modules.reduce((max, m) => Math.max(max, m.sort_order), -1) + 1);
   moduleDefaultInput.checked = mod ? !!mod.default_enabled : true;
+  renderModuleKeyStatus();
   moduleModal.style.display = 'flex';
   setTimeout(() => moduleNameInput.focus(), 50);
 };
@@ -893,6 +910,18 @@ const closeModuleModal = () => {
   moduleModal.style.display = 'none';
   editingModuleKey = null;
   moduleForm.reset();
+};
+
+// Diz no modal se o SimCrane Pro reconhece a chave digitada.
+const renderModuleKeyStatus = () => {
+  const key = moduleKeyInput.value.trim();
+  const def = proModule(key);
+  moduleKeyStatus.className = `hint key-status${def ? ' is-live' : key ? ' is-idle' : ''}`;
+  moduleKeyStatus.textContent = def
+    ? `🔒 O SimCrane Pro bloqueia o botão "${def.name}" com esta chave.`
+    : key
+      ? 'O SimCrane Pro ainda não verifica esta chave — ligar/desligar não muda nada no app.'
+      : `Chaves que o app verifica: ${PRO_MODULES.map(d => d.key).join(', ')}.`;
 };
 
 // Sugere a chave a partir do nome ("Simulador 3D" → "simulador-3d").
@@ -933,7 +962,9 @@ const handleModuleSubmit = async (e) => {
 };
 
 const deleteModule = async (mod) => {
-  if (!confirm(`Excluir o módulo "${mod.name}"? Ele será removido de todos os usuários.`)) return;
+  const def = proModule(mod.key);
+  const extra = def ? `\n\nO SimCrane Pro volta ao padrão para ${mod.name}: ${def.legacy}.` : '';
+  if (!confirm(`Excluir o módulo "${mod.name}"? Ele será removido de todos os usuários.${extra}`)) return;
   try {
     const { error } = await supabase.from('app_modules').delete().eq('key', mod.key);
     if (error) throw error;
@@ -943,6 +974,34 @@ const deleteModule = async (mod) => {
   } catch (err) {
     console.error('Erro ao excluir módulo:', err);
     showToast(escapeHtml(err.message || 'Erro ao excluir módulo.'), 'error');
+  }
+};
+
+// Cadastra um módulo que o SimCrane Pro já verifica. Para não bloquear ninguém
+// de surpresa, oferece liberá-lo para quem já existe quando o app hoje o
+// deixa livre para todos.
+const addProModule = async (def) => {
+  try {
+    const sort_order = modules.reduce((max, m) => Math.max(max, m.sort_order), -1) + 1;
+    const { error } = await supabase.from('app_modules').insert({
+      key: def.key, name: def.name, icon: def.icon, description: def.description,
+      default_enabled: def.default_enabled, sort_order
+    });
+    if (error) throw error;
+    showToast(`Módulo <strong>${escapeHtml(def.name)}</strong> cadastrado.`);
+    if (def.default_enabled && confirm(
+      `Hoje o ${def.name} é ${def.legacy} no SimCrane Pro.\n\n` +
+      'Liberar para todos os usuários atuais, para ninguém perder o acesso?\n' +
+      '(Cancelar = bloqueado para todos até você liberar um a um.)'
+    )) {
+      const { data, error: rpcError } = await supabase.rpc('set_module_for_all', { p_key: def.key, p_enabled: true });
+      if (rpcError) throw rpcError;
+      showToast(`${escapeHtml(def.name)}: ${data ?? 0} usuário(s) liberados.`);
+    }
+    await Promise.all([fetchModules(), fetchProfiles()]);
+  } catch (err) {
+    console.error('Erro ao cadastrar módulo:', err);
+    showToast(escapeHtml(err.message || 'Erro ao cadastrar módulo.'), 'error');
   }
 };
 
@@ -988,7 +1047,7 @@ const renderModuleFilterOptions = () => {
   moduleFilterSelect.hidden = !modulesAvailable || modules.length === 0;
   moduleFilterSelect.innerHTML = `
     <option value="">Todos os módulos</option>
-    ${modules.map(m => `<option value="${escapeHtml(m.key)}">${escapeHtml(m.icon || '🧩')} ${escapeHtml(m.name)}</option>`).join('')}
+    ${orderedModules().map(m => `<option value="${escapeHtml(m.key)}">${escapeHtml(m.icon || '🧩')} ${escapeHtml(m.name)}</option>`).join('')}
     <option value="__none__">Sem nenhum módulo</option>
   `;
   moduleFilterSelect.value = moduleFilter;
@@ -1080,7 +1139,7 @@ const renderModuleChips = (p) => {
   if (!modulesAvailable || modules.length === 0 || p.role === 'admin') return '';
   const enabled = userModules(p);
   const MAX = 6;
-  const chips = modules.slice(0, MAX).map(m => {
+  const chips = orderedModules().slice(0, MAX).map(m => {
     const on = enabled.includes(m.key);
     return `<span class="module-chip ${on ? '' : 'is-off'}" title="${escapeHtml(m.name)}: ${on ? 'liberado' : 'bloqueado'}">${escapeHtml(m.icon || '🧩')} ${escapeHtml(m.name)}</span>`;
   }).join('');
@@ -1341,14 +1400,15 @@ const renderDrawerModules = (p) => {
   drawerModulesTools.querySelector('.js-none').addEventListener('click', () => setAllUserModules(p, false));
 
   drawerModules.innerHTML = '';
-  modules.forEach(m => {
+  orderedModules().forEach(m => {
     const on = enabled.includes(m.key);
+    const live = !!proModule(m.key);
     const row = document.createElement('label');
-    row.className = `switch-row${on ? ' is-on' : ''}`;
+    row.className = `switch-row${on ? ' is-on' : ''}${live ? '' : ' is-idle'}`;
     row.innerHTML = `
       <span class="module-icon">${escapeHtml(m.icon || '🧩')}</span>
       <span>
-        <strong>${escapeHtml(m.name)}</strong>
+        <strong>${escapeHtml(m.name)}${live ? '' : ' <span class="tag-app is-idle" title="O SimCrane Pro não verifica esta chave">sem efeito no app</span>'}</strong>
         <small>${escapeHtml(m.description || m.key)}</small>
       </span>
       <span class="switch">
@@ -1418,54 +1478,106 @@ const renderModulesView = ({ animate = false } = {}) => {
   }
   modulesNotice.style.display = 'none';
   modulesList.innerHTML = '';
-  modulesEmpty.style.display = modules.length ? 'none' : 'block';
+  modulesEmpty.style.display = 'none';
 
   const users = profiles.filter(p => p.role !== 'admin');
-  modules.forEach((m, i) => {
-    const count = users.filter(p => userModules(p).includes(m.key)).length;
-    const pct = users.length ? Math.round((count / users.length) * 100) : 0;
-    const card = document.createElement('article');
-    card.className = 'module-card';
-    if (animate) card.style.animationDelay = `${i * 50}ms`;
+  const live = orderedModules().filter(m => proModule(m.key));
+  const idle = orderedModules().filter(m => !proModule(m.key));
+  const missing = PRO_MODULES.filter(d => !modules.some(m => m.key === d.key));
+  let i = 0;
+  const delay = (card) => {
+    if (animate) card.style.animationDelay = `${i++ * 50}ms`;
     else card.style.animation = 'none';
+  };
+  const heading = (title, hint) => {
+    const h = document.createElement('div');
+    h.className = 'module-group-title';
+    h.innerHTML = `<h2>${title}</h2><p>${hint}</p>`;
+    modulesList.appendChild(h);
+  };
+
+  heading('Controlados pelo SimCrane Pro',
+    'Desligar um destes esconde o botão na barra lateral do app (o usuário vê a mudança na hora). Administradores sempre têm todos.');
+  live.forEach(m => modulesList.appendChild(buildModuleCard(m, users, { animate, delay, live: true })));
+  missing.forEach(def => {
+    const card = document.createElement('article');
+    card.className = 'module-card is-missing';
+    delay(card);
     card.innerHTML = `
       <div class="module-card-head">
-        <div class="module-card-icon">${escapeHtml(m.icon || '🧩')}</div>
+        <div class="module-card-icon">${escapeHtml(def.icon)}</div>
         <div>
-          <h3>${escapeHtml(m.name)}</h3>
-          <span class="module-key">${escapeHtml(m.key)}</span>
+          <h3>${escapeHtml(def.name)}</h3>
+          <span class="module-key">${escapeHtml(def.key)}</span>
         </div>
-        ${m.default_enabled ? '<span class="tag-default" title="Liberado automaticamente para novos cadastros">★ Padrão</span>' : ''}
+        <span class="tag-app is-idle">Não cadastrado</span>
       </div>
-      <p class="module-desc">${escapeHtml(m.description || 'Sem descrição.')}</p>
-      <div class="module-usage">
-        <div class="validity-labels"><span><strong>${count}</strong> de ${users.length} usuário(s) com acesso</span><span>${pct}%</span></div>
-        <div class="progress" style="--bar: linear-gradient(90deg, #8b5cf6, #3b82f6)"><span style="width: ${animate ? 0 : pct}%"></span></div>
-      </div>
+      <p class="module-desc">${escapeHtml(def.description)}</p>
+      <p class="module-legacy">Sem cadastro, o app usa o padrão: <strong>${escapeHtml(def.legacy)}</strong>. Cadastre para controlar usuário a usuário.</p>
       <div class="module-actions">
-        <button type="button" class="btn btn-xs btn-success-outline js-all">Liberar p/ todos</button>
-        <button type="button" class="btn btn-xs btn-danger-outline js-none">Remover de todos</button>
-        <span style="flex: 1"></span>
-        <button type="button" class="btn btn-xs btn-ghost js-users" title="Ver usuários com este módulo">👥</button>
-        <button type="button" class="btn btn-xs btn-ghost js-edit">Editar</button>
-        <button type="button" class="btn btn-xs btn-danger-outline js-delete" title="Excluir módulo">🗑️</button>
+        <button type="button" class="btn btn-xs btn-primary js-add">+ Cadastrar módulo</button>
       </div>
     `;
-    if (animate) {
-      const bar = card.querySelector('.progress span');
-      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = `${pct}%`; }));
-    }
-    card.querySelector('.js-all').addEventListener('click', () => setModuleForAll(m, true));
-    card.querySelector('.js-none').addEventListener('click', () => setModuleForAll(m, false));
-    card.querySelector('.js-edit').addEventListener('click', () => openModuleModal(m));
-    card.querySelector('.js-delete').addEventListener('click', () => deleteModule(m));
-    card.querySelector('.js-users').addEventListener('click', () => {
-      moduleFilter = m.key;
-      moduleFilterSelect.value = m.key;
-      setView('users');
+    card.querySelector('.js-add').addEventListener('click', (e) => {
+      e.currentTarget.disabled = true;
+      addProModule(def);
     });
     modulesList.appendChild(card);
   });
+
+  if (idle.length) {
+    heading('Outros módulos',
+      'O SimCrane Pro ainda não verifica estas chaves: ligar ou desligar não muda nada no app. Use como etiqueta ou exclua.');
+    idle.forEach(m => modulesList.appendChild(buildModuleCard(m, users, { animate, delay, live: false })));
+  }
+};
+
+const buildModuleCard = (m, users, { animate, delay, live }) => {
+  const count = users.filter(p => userModules(p).includes(m.key)).length;
+  const pct = users.length ? Math.round((count / users.length) * 100) : 0;
+  const card = document.createElement('article');
+  card.className = `module-card${live ? '' : ' is-idle'}`;
+  delay(card);
+  card.innerHTML = `
+    <div class="module-card-head">
+      <div class="module-card-icon">${escapeHtml(m.icon || '🧩')}</div>
+      <div>
+        <h3>${escapeHtml(m.name)}</h3>
+        <span class="module-key">${escapeHtml(m.key)}</span>
+      </div>
+      <div class="module-tags">
+        ${live ? '<span class="tag-app is-live" title="O SimCrane Pro esconde o botão de quem não tem este módulo">🔒 Bloqueia no app</span>' : ''}
+        ${m.default_enabled ? '<span class="tag-default" title="Liberado automaticamente para novos cadastros">★ Padrão</span>' : ''}
+      </div>
+    </div>
+    <p class="module-desc">${escapeHtml(m.description || 'Sem descrição.')}</p>
+    <div class="module-usage">
+      <div class="validity-labels"><span><strong>${count}</strong> de ${users.length} usuário(s) com acesso</span><span>${pct}%</span></div>
+      <div class="progress" style="--bar: linear-gradient(90deg, #8b5cf6, #3b82f6)"><span style="width: ${animate ? 0 : pct}%"></span></div>
+    </div>
+    <div class="module-actions">
+      <button type="button" class="btn btn-xs btn-success-outline js-all">Liberar p/ todos</button>
+      <button type="button" class="btn btn-xs btn-danger-outline js-none">Remover de todos</button>
+      <span style="flex: 1"></span>
+      <button type="button" class="btn btn-xs btn-ghost js-users" title="Ver usuários com este módulo">👥</button>
+      <button type="button" class="btn btn-xs btn-ghost js-edit">Editar</button>
+      <button type="button" class="btn btn-xs btn-danger-outline js-delete" title="Excluir módulo">🗑️</button>
+    </div>
+  `;
+  if (animate) {
+    const bar = card.querySelector('.progress span');
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = `${pct}%`; }));
+  }
+  card.querySelector('.js-all').addEventListener('click', () => setModuleForAll(m, true));
+  card.querySelector('.js-none').addEventListener('click', () => setModuleForAll(m, false));
+  card.querySelector('.js-edit').addEventListener('click', () => openModuleModal(m));
+  card.querySelector('.js-delete').addEventListener('click', () => deleteModule(m));
+  card.querySelector('.js-users').addEventListener('click', () => {
+    moduleFilter = m.key;
+    moduleFilterSelect.value = m.key;
+    setView('users');
+  });
+  return card;
 };
 
 // 10. Event Listeners
@@ -1499,8 +1611,20 @@ moduleModal.addEventListener('click', (e) => { if (e.target === moduleModal) clo
 // Preenche a chave a partir do nome até o admin editar a chave manualmente.
 moduleNameInput.addEventListener('input', () => {
   if (!editingModuleKey && !moduleKeyInput.dataset.touched) moduleKeyInput.value = slugify(moduleNameInput.value);
+  renderModuleKeyStatus();
 });
-moduleKeyInput.addEventListener('input', () => { moduleKeyInput.dataset.touched = '1'; });
+moduleKeyInput.addEventListener('input', () => {
+  moduleKeyInput.dataset.touched = '1';
+  // Escolheu uma chave do app pela lista: completa nome, ícone e descrição vazios.
+  const def = proModule(moduleKeyInput.value.trim());
+  if (def && !editingModuleKey) {
+    if (!moduleNameInput.value.trim()) moduleNameInput.value = def.name;
+    if (!moduleIconInput.value.trim()) moduleIconInput.value = def.icon;
+    if (!moduleDescriptionInput.value.trim()) moduleDescriptionInput.value = def.description;
+    moduleDefaultInput.checked = def.default_enabled;
+  }
+  renderModuleKeyStatus();
+});
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (moduleModal.style.display === 'flex') closeModuleModal();

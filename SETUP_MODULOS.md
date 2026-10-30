@@ -40,7 +40,29 @@ UPDATE, e no INSERT o novo gatilho descarta qualquer lista enviada pelo usuário
 
 ---
 
-## 2. Bloquear os módulos no app SimCrane Pro
+## 2. Módulos que o SimCrane Pro já bloqueia (CADSim, Cinematic, Pórtico)
+
+Rode também `supabase/migrations/0005_simcrane_pro_modules.sql`. Ela cadastra
+as três chaves que o SimCrane Pro verifica na barra lateral:
+
+| Chave | Botão no app | Sem cadastro (padrão antigo) | Depois da 0005 |
+|---|---|---|---|
+| `cadsim` | CADSim | só administradores | ninguém liberado até você ligar |
+| `portico` | PÓRTICO | livre para todos | liberado para todos os usuários atuais e novos ("Padrão") |
+| `cinematic` | Cinematic | só administradores | ninguém liberado até você ligar |
+
+- Usuário sem o módulo **não vê o botão** e o painel não abre. Administrador
+  sempre tem todos.
+- A mudança chega ao app **na hora** (Realtime) ou quando a janela volta ao foco.
+- Se um desses módulos for **excluído** do catálogo, o app volta ao padrão antigo
+  da tabela acima.
+- Na aba **Módulos** do painel, os três aparecem em "Controlados pelo SimCrane
+  Pro". Se algum não estiver cadastrado, aparece um card tracejado com
+  **+ Cadastrar módulo**. Os demais módulos (ex.: `simulador`, `catalogo`, `cad`)
+  ficam em "Outros módulos": o app ainda não verifica essas chaves. A 0005 traz
+  uma linha comentada para apagá-los, se quiser.
+
+## 3. Bloquear outros módulos no app SimCrane Pro
 
 O painel só **grava** a permissão. Quem decide se a tela abre é o app cliente.
 Use a **chave** do módulo (a que aparece em roxo no card do catálogo):
