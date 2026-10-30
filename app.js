@@ -1497,7 +1497,7 @@ const renderModulesView = ({ animate = false } = {}) => {
   };
 
   heading('Controlados pelo SimCrane Pro',
-    'Desligar um destes esconde o botão na barra lateral do app (o usuário vê a mudança na hora). Administradores sempre têm todos.');
+    'Sem o módulo, o botão aparece com cadeado no app e avisa que não está no pacote do usuário (a mudança chega na hora). Administradores sempre têm todos.');
   live.forEach(m => modulesList.appendChild(buildModuleCard(m, users, { animate, delay, live: true })));
   missing.forEach(def => {
     const card = document.createElement('article');
@@ -1546,7 +1546,7 @@ const buildModuleCard = (m, users, { animate, delay, live }) => {
         <span class="module-key">${escapeHtml(m.key)}</span>
       </div>
       <div class="module-tags">
-        ${live ? '<span class="tag-app is-live" title="O SimCrane Pro esconde o botão de quem não tem este módulo">🔒 Bloqueia no app</span>' : ''}
+        ${live ? '<span class="tag-app is-live" title="No SimCrane Pro, quem não tem este módulo vê o botão com cadeado e o aviso de que não está no pacote">🔒 Bloqueia no app</span>' : ''}
         ${m.default_enabled ? '<span class="tag-default" title="Liberado automaticamente para novos cadastros">★ Padrão</span>' : ''}
       </div>
     </div>

@@ -51,8 +51,9 @@ as três chaves que o SimCrane Pro verifica na barra lateral:
 | `portico` | PÓRTICO | livre para todos | liberado para todos os usuários atuais e novos ("Padrão") |
 | `cinematic` | Cinematic | só administradores | ninguém liberado até você ligar |
 
-- Usuário sem o módulo **não vê o botão** e o painel não abre. Administrador
-  sempre tem todos.
+- Usuário sem o módulo **vê o botão com um cadeado**; ao clicar, aparece o
+  aviso "Fora do seu pacote — o módulo X não está incluído no seu pacote" e o
+  painel não abre. Administrador sempre tem todos.
 - A mudança chega ao app **na hora** (Realtime) ou quando a janela volta ao foco.
 - Se um desses módulos for **excluído** do catálogo, o app volta ao padrão antigo
   da tabela acima.
