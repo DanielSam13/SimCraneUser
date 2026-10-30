@@ -1632,3 +1632,85 @@ body {
 
   .glass-card { padding: 24px 20px; }
 }
+
+/* ----------------------------------------------------------------
+   Módulos: o que o SimCrane Pro realmente bloqueia
+---------------------------------------------------------------- */
+.module-group-title {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+.module-group-title:not(:first-child) { margin-top: 22px; }
+
+.module-group-title h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.module-group-title p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.module-tags {
+  margin-left: auto;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.module-tags .tag-default { margin-left: 0; align-self: auto; }
+
+.tag-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.tag-app.is-live {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.tag-app.is-idle {
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-weight: 500;
+}
+
+.module-card-head .tag-app.is-idle { margin-left: auto; align-self: flex-start; }
+
+.module-card.is-idle { opacity: 0.72; }
+.module-card.is-idle:hover { opacity: 1; }
+
+.module-card.is-missing {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.module-card.is-missing .module-card-icon { filter: grayscale(0.6); opacity: 0.8; }
+
+.module-legacy {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.switch-row.is-idle strong { color: var(--text-muted); }
+
+.key-status { display: block; margin-top: 4px; }
+.key-status.is-live { color: #93c5fd; }
+.key-status.is-idle { color: #fbbf24; }
